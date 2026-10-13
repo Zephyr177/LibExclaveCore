@@ -136,6 +136,12 @@ func NewTun2ray(config *TunConfig) (*Tun2ray, error) {
 		t.dev, err = newSingTun(config, t, discardIPv6Func)
 	case common.TunImplementationSystem:
 		t.dev, err = nat.New(config.FileDescriptor, config.MTU, t, t.addr4, t.addr6, config.EnableIPv6, config.DiscardICMP, discardIPv6Func)
+	case common.TunImplementationMIPS:
+		if config.PCap {
+			newError("pcap capture is not available with the mips stack, ignoring").AtWarning().WriteToLog()
+		}
+
+		t.dev, err = newMipsTun(config, t, discardIPv6Func)
 	}
 
 	if err != nil {

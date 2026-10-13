@@ -56,7 +56,8 @@ func (t *singTun) Close() error {
 	return err
 }
 
-func newSingTun(config *TunConfig, t *Tun2ray, discardIPv6Func func() bool) (*singTun, error) {
+// newSingTunDevice opens the packet device shared by every userspace stack.
+func newSingTunDevice(config *TunConfig, t *Tun2ray) (singtun.Tun, singtun.Options, error) {
 	mtu := config.MTU
 	if mtu <= 0 {
 		mtu = 1500
@@ -77,10 +78,18 @@ func newSingTun(config *TunConfig, t *Tun2ray, discardIPv6Func func() bool) (*si
 
 	device, err := singtun.New(tunOptions)
 	if err != nil {
-		return nil, err
+		return nil, singtun.Options{}, err
 	}
 	if err = device.Start(); err != nil {
 		_ = device.Close()
+		return nil, singtun.Options{}, err
+	}
+	return device, tunOptions, nil
+}
+
+func newSingTun(config *TunConfig, t *Tun2ray, discardIPv6Func func() bool) (*singTun, error) {
+	device, tunOptions, err := newSingTunDevice(config, t)
+	if err != nil {
 		return nil, err
 	}
 

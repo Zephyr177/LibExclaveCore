@@ -20,4 +20,5 @@ package common
 const (
 	TunImplementationGVisor = iota
 	TunImplementationSystem
+	TunImplementationMIPS
 )

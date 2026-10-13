@@ -7,6 +7,7 @@ require (
 	github.com/exclavenetwork/exclave-core/v5 v5.50.1-0.20261010121846-8fc0f6de53b3
 	github.com/exclavenetwork/go-stun v0.1.7-0.20260811120819-d09f4628f065
 	github.com/golang/protobuf v1.5.4
+	github.com/metacubex/mipstack v0.0.0-20260930071539-961d4b1c1983
 	github.com/quic-go/quic-go v0.63.0
 	github.com/sagernet/sing v0.9.7-0.20260929150544-0ad23b637bd4
 	github.com/sagernet/sing-tun v0.9.7-0.20261009022811-5c2edb183cc9

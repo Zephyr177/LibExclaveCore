@@ -191,6 +191,8 @@ github.com/metacubex/jls-quic-go v0.0.0-20260727080412-732f2fc9a34d h1:OF3TUGKdH
 github.com/metacubex/jls-quic-go v0.0.0-20260727080412-732f2fc9a34d/go.mod h1:dH8StPlpZ7atSUuTnfTnRXvJK22nOtQVimNwQ9Gmk58=
 github.com/metacubex/jls-tls v0.0.0-20260723084315-67adc0e2f796 h1:1iI4np/Dm1ztCfTW2LoN166O6n728HXMc11aIazYdps=
 github.com/metacubex/jls-tls v0.0.0-20260723084315-67adc0e2f796/go.mod h1:mmqs889W/TqPlfNRDa2UyJvRiLyiTJIEnWHkcj3SKB8=
+github.com/metacubex/mipstack v0.0.0-20260930071539-961d4b1c1983 h1:BGb9PDJrrZSsDnJyeFWFY9v6uTr6/LxokQgwuHVAsDI=
+github.com/metacubex/mipstack v0.0.0-20260930071539-961d4b1c1983/go.mod h1:+bbwALZI0pbi2auSG5A3ptdpV2DZ2eLObziXo+P7oj0=
 github.com/metacubex/mlkem v0.1.0 h1:wFClitonSFcmipzzQvax75beLQU+D7JuC+VK1RzSL8I=
 github.com/metacubex/mlkem v0.1.0/go.mod h1:amhaXZVeYNShuy9BILcR7P0gbeo/QLZsnqCdL8U2PDQ=
 github.com/metacubex/randv2 v0.2.1-0.20260726125100-81aa96a9b1a5 h1:DZld5uIHc1YJ9AL0BpCiRZUZIgz03DreMgfC2sM0afg=
