@@ -29,6 +29,7 @@ import (
 	singtun "github.com/sagernet/sing-tun"
 	gHeader "github.com/sagernet/sing-tun/gtcpip/header"
 	singbuf "github.com/sagernet/sing/common/buf"
+	singbufio "github.com/sagernet/sing/common/bufio"
 	SM "github.com/sagernet/sing/common/metadata"
 	SN "github.com/sagernet/sing/common/network"
 
@@ -144,8 +145,7 @@ func (h *singHandler) JudgeFlow(network uint8, source netip.AddrPort, destinatio
 }
 
 func (h *singHandler) NewDNSPacket(payload []byte, source SM.Socksaddr, destination SM.Socksaddr, writer SN.PacketWriter) {
-	raw := make([]byte, len(payload))
-	copy(raw, payload)
+	data := newPacketBuffer(payload)
 	frontHeadroom := SN.CalculateFrontHeadroom(writer)
 	writeBack := func(bytes []byte, addr *net.UDPAddr) (int, error) {
 		replySource := destination
@@ -158,7 +158,14 @@ func (h *singHandler) NewDNSPacket(payload []byte, source SM.Socksaddr, destinat
 		err := writer.WritePacket(replyBuffer, replySource)
 		return len(bytes), err
 	}
-	h.tun.NewPacket(toV2RayDestination(source, v2rayNet.Network_UDP), toV2RayDestination(destination, v2rayNet.Network_UDP), buf.FromBytes(raw), writeBack)
+	h.tun.NewPacket(toV2RayDestination(source, v2rayNet.Network_UDP), toV2RayDestination(destination, v2rayNet.Network_UDP), data, writeBack)
+}
+
+// newPacketBuffer copies a payload into pooled core storage released by Tun2ray.
+func newPacketBuffer(payload []byte) *buf.Buffer {
+	data := buf.NewWithSize(int32(len(payload)))
+	_, _ = data.Write(payload)
+	return data
 }
 
 func (h *singHandler) NewConnectionEx(_ context.Context, conn net.Conn, source SM.Socksaddr, destination SM.Socksaddr, onClose SN.CloseHandlerFunc) {
@@ -183,44 +190,60 @@ func (h *singHandler) NewPacketConnectionEx(_ context.Context, conn SN.PacketCon
 		}
 		return
 	}
+	v2raySource := toV2RayDestination(source, v2rayNet.Network_UDP)
+	frontHeadroom := SN.CalculateFrontHeadroom(conn)
+	// Tun2ray keys sessions by source and retains only the writeBack of the
+	// packet that opened one, so a single closure serves the whole connection.
+	writeBack := func(bytes []byte, addr *net.UDPAddr) (int, error) {
+		replyDestination := destination
+		if addr != nil {
+			replyDestination = SM.SocksaddrFromNet(addr)
+		}
+		replyBuffer := singbuf.NewSize(frontHeadroom + len(bytes))
+		replyBuffer.Resize(frontHeadroom, 0)
+		_, _ = replyBuffer.Write(bytes)
+		err := conn.WritePacket(replyBuffer, replyDestination)
+		return len(bytes), err
+	}
+	// The read waiter hands over the queued buffer itself, saving the copy
+	// ReadPacket makes into a caller buffer.
+	readWaiter, isReadWaiter := singbufio.CreatePacketReadWaiter(conn)
+	if isReadWaiter {
+		readWaiter.InitializeReadWaiter(SN.ReadWaitOptions{})
+	}
 	readSize := int(h.tun.mtu)
 	if readSize <= 0 {
 		readSize = 1500
 	}
-	v2raySource := toV2RayDestination(source, v2rayNet.Network_UDP)
-	sessionDestination := destination
-	frontHeadroom := SN.CalculateFrontHeadroom(conn)
 	var readErr error
 	for {
-		buffer := singbuf.NewSize(readSize)
-		packetDestination, err := conn.ReadPacket(buffer)
+		var (
+			buffer            *singbuf.Buffer
+			packetDestination SM.Socksaddr
+			err               error
+		)
+		if isReadWaiter {
+			buffer, packetDestination, err = readWaiter.WaitReadPacket()
+		} else {
+			buffer = singbuf.NewSize(readSize)
+			packetDestination, err = conn.ReadPacket(buffer)
+			if err != nil {
+				buffer.Release()
+			}
+		}
 		if err != nil {
 			readErr = err
-			buffer.Release()
 			if errors.Is(readErr, io.ErrShortBuffer) {
 				continue
 			}
 			break
 		}
 		if !packetDestination.IsIP() {
-			packetDestination = sessionDestination
+			packetDestination = destination
 		}
-		payload := buffer.Bytes()
-		raw := make([]byte, len(payload))
-		copy(raw, payload)
+		data := newPacketBuffer(buffer.Bytes())
 		buffer.Release()
-		writeBack := func(bytes []byte, addr *net.UDPAddr) (int, error) {
-			replyDestination := packetDestination
-			if addr != nil {
-				replyDestination = SM.SocksaddrFromNet(addr)
-			}
-			replyBuffer := singbuf.NewSize(frontHeadroom + len(bytes))
-			replyBuffer.Resize(frontHeadroom, 0)
-			_, _ = replyBuffer.Write(bytes)
-			err := conn.WritePacket(replyBuffer, replyDestination)
-			return len(bytes), err
-		}
-		h.tun.NewPacket(v2raySource, toV2RayDestination(packetDestination, v2rayNet.Network_UDP), buf.FromBytes(raw), writeBack)
+		h.tun.NewPacket(v2raySource, toV2RayDestination(packetDestination, v2rayNet.Network_UDP), data, writeBack)
 	}
 	_ = conn.Close()
 	if onClose != nil {

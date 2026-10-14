@@ -209,14 +209,10 @@ func (t *Tun) writeLoop() {
 		buffers[i] = make([]byte, int(t.mtu))
 	}
 	sizes := make([]int, batchSize)
-	packets := make([][]byte, batchSize)
 	for {
 		n, err := t.stack.Read(buffers, sizes, 0)
 		for i := range n {
-			packets[i] = buffers[i][:sizes[i]]
-		}
-		for _, packet := range packets[:n] {
-			if _, writeErr := t.device.Write(packet); writeErr != nil {
+			if _, writeErr := t.device.Write(buffers[i][:sizes[i]]); writeErr != nil {
 				if isClosedError(writeErr) {
 					return
 				}
@@ -227,6 +223,11 @@ func (t *Tun) writeLoop() {
 		if err != nil {
 			if isClosedError(err) {
 				return
+			}
+			// Read already discarded the oversized packet; the rest of the
+			// output queue is still deliverable.
+			if errors.Is(err, io.ErrShortBuffer) {
+				continue
 			}
 			newError("read stack packet: ", err).AtError().WriteToLog()
 			return

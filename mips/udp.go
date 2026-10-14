@@ -34,12 +34,14 @@ func (t *Tun) forwardUDP(request *mipstack.UDPForwarderRequest) {
 		return
 	}
 	// The payload is only valid until this handler returns, while the responder
-	// outlives it for as long as the core keeps the session.
+	// outlives it for as long as the core keeps the session. Tun2ray releases
+	// the pooled copy.
 	payload := request.Payload()
-	raw := make([]byte, len(payload))
-	copy(raw, payload)
+	data := buf.NewWithSize(int32(len(payload)))
+	_, _ = data.Write(payload)
 	responder, err := request.DetachForReplies()
 	if err != nil {
+		data.Release()
 		return
 	}
 	writeBack := func(bytes []byte, addr *net.UDPAddr) (int, error) {
@@ -50,5 +52,5 @@ func (t *Tun) forwardUDP(request *mipstack.UDPForwarderRequest) {
 		}
 		return responder.Reply(bytes)
 	}
-	t.handler.NewPacket(toV2RayDestination(flow.Source, v2rayNet.Network_UDP), toV2RayDestination(flow.Destination, v2rayNet.Network_UDP), buf.FromBytes(raw), writeBack)
+	t.handler.NewPacket(toV2RayDestination(flow.Source, v2rayNet.Network_UDP), toV2RayDestination(flow.Destination, v2rayNet.Network_UDP), data, writeBack)
 }
